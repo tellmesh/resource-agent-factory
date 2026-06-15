@@ -3,6 +3,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+# Must be set before generator/agent_generator.py import-time repo lookup.
+os.environ.setdefault("HYPERVISOR_REPO_ROOT", "/home/tom/github/tellmesh/tellmesh")
+
 import pytest
 
 
@@ -14,7 +17,7 @@ def package_root() -> Path:
 @pytest.fixture(scope="session")
 def repo_root() -> Path:
     return Path(
-        os.environ.get("HYPERVISOR_REPO_ROOT", "/home/tom/github/wronai/hypervisor")
+        os.environ.get("HYPERVISOR_REPO_ROOT", "/home/tom/github/tellmesh/tellmesh")
     ).resolve()
 
 
