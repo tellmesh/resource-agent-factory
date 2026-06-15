@@ -1,0 +1,87 @@
+{% include '_python_header.j2' %}
+from __future__ import annotations
+
+import os
+from typing import Any
+
+from fastapi import APIRouter, Query
+from agents.generated.runtime_routes import (
+    CommandRequest,
+    assert_command_allowed,
+    assert_resource_allowed,
+    command_uri,
+    dispatch_command,
+    read_uri,
+)
+from runtime_client.client import ResourceRuntimeClient
+
+from .agent_card import AGENT_CARD
+
+router = APIRouter()
+
+RUNTIME_URL = os.getenv("{{ spec.runtime_url_env }}", "{{ spec.runtime_url_default }}")
+client = ResourceRuntimeClient(base_url=RUNTIME_URL)
+
+
+@router.get("/health")
+def health() -> dict[str, Any]:
+    return {
+        "ok": True,
+        "agent": "{{ spec.name }}",
+        "version": "{{ spec.version }}",
+        "runtime_url": RUNTIME_URL,
+    }
+
+
+@router.get("/capabilities")
+def capabilities() -> dict[str, Any]:
+    return {"capabilities": AGENT_CARD["capabilities"]}
+
+
+@router.get("/.well-known/agent.json")
+def well_known_agent_json() -> dict[str, Any]:
+    return AGENT_CARD
+
+
+@router.get("/.well-known/agent-card.json")
+def well_known_agent_card_json() -> dict[str, Any]:
+    return AGENT_CARD
+
+
+@router.get("/resources/read")
+def read_resource(uri: str = Query(...)) -> dict[str, Any]:
+    assert_resource_allowed(AGENT_CARD, uri)
+    return read_uri(client, uri)
+
+
+@router.post("/commands")
+def dispatch_command_route(request: CommandRequest) -> dict[str, Any]:
+    assert_command_allowed(AGENT_CARD, request.command)
+    return dispatch_command(
+        client,
+        request.command,
+        request.payload,
+        uri=command_uri(AGENT_CARD, request.command),
+    )
+
+
+{% for cap in spec.capabilities if cap.type == "resource_read" %}
+@router.get("/skills/{{ cap.name }}")
+def skill_{{ cap.name }}({% for segment in cap.uri.split('{')[1:] %}{{ segment.split('}')[0] }}: str{% if not loop.last %}, {% endif %}{% endfor %}) -> dict[str, Any]:
+    uri = "{{ cap.uri }}"
+{% for segment in cap.uri.split('{')[1:] %}
+    uri = uri.replace("{{ '{' }}{{ segment.split('}')[0] }}{{ '}' }}", {{ segment.split('}')[0] }})
+{% endfor %}
+    return read_uri(client, uri)
+{% endfor %}
+
+{% for cap in spec.capabilities if cap.type == "command" %}
+@router.post("/skills/{{ cap.name }}")
+def skill_{{ cap.name }}(payload: dict[str, Any]) -> dict[str, Any]:
+    return dispatch_command(
+        client,
+        "{{ cap.command }}",
+        payload,
+        uri={% if cap.uri %}"{{ cap.uri }}"{% else %}None{% endif %},
+    )
+{% endfor %}
