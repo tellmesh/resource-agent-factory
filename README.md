@@ -1,6 +1,6 @@
 # resource-agent-factory
 
-TellMesh core package extracted from [wronai/hypervisor](https://github.com/tellmesh/tellmesh).
+TellMesh core package extracted from [tellmesh/tellmesh](https://github.com/tellmesh/tellmesh).
 
 
 ## License
